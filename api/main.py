@@ -27,12 +27,17 @@ app.add_middleware(
 s3 = boto3.client(
     's3',
     aws_access_key_id= os.getenv("AWS_ACCESS_KEY"),
-    aws_secret_access_key= os.getenv("AWS_SECRET_KEY"))
+    aws_secret_access_key= os.getenv("AWS_SECRET_KEY"),
+    region_name='us-west-2'  # e.g., 'us-west-2'
+    )
 
-bucket_name = 'YOUR_BUCKET_NAME' # Add your bucket name here
+bucket_name = 'atiba-qr-code' # Add your bucket name here
 
 @app.post("/generate-qr/")
 async def generate_qr(url: str):
+    # Log the URL
+    print(f"Generating QR code for URL: {url}")
+
     # Generate QR Code
     qr = qrcode.QRCode(
         version=1,
@@ -51,15 +56,20 @@ async def generate_qr(url: str):
     img_byte_arr.seek(0)
 
     # Generate file name for S3
-    file_name = f"qr_codes/{url.split('//')[-1]}.png"
-
+    file_name = f"qr_codes/{url.split('//')[-1].replace('/', '_')}.png"
+    print(f"Generated file name: {file_name}")
+    
     try:
         # Upload to S3
-        s3.put_object(Bucket=bucket_name, Key=file_name, Body=img_byte_arr, ContentType='image/png', ACL='public-read')
+        response = s3.put_object(Bucket=bucket_name, Key=file_name, Body=img_byte_arr, ContentType='image/png', ACL='public-read')
+        
+        # Used as feedback if there are any errors
+        #print(f"Upload response: {response}")
         
         # Generate the S3 URL
         s3_url = f"https://{bucket_name}.s3.amazonaws.com/{file_name}"
+        
         return {"qr_code_url": s3_url}
     except Exception as e:
+        print(f"Error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-    
